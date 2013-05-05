@@ -1,6 +1,8 @@
+#include <vector>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/imgproc/imgproc.hpp>
+#include "HarrisDetector.hpp"
 
 class FeatureDetectorNode
 {
@@ -11,6 +13,7 @@ class FeatureDetectorNode
 		image_transport::ImageTransport it;
 		image_transport::Subscriber sub;
 		image_transport::Publisher pub;
+		boost::shared_ptr<HarrisDetector> harrisDetector;
 
 		void imageMessageCallback(const sensor_msgs::ImageConstPtr& msg);
 };
@@ -18,16 +21,21 @@ class FeatureDetectorNode
 
 FeatureDetectorNode::FeatureDetectorNode(ros::NodeHandle nh) : it(nh)
 {
-	sub = it.subscribe("/pseye/image_color", 1, &FeatureDetectorNode::imageMessageCallback, this);
+	sub = it.subscribe("/pseye/image_mono", 1, &FeatureDetectorNode::imageMessageCallback, this);
 	pub = it.advertise("image", 1);
+
+	boost::shared_ptr<HarrisDetector> tempPtr(new HarrisDetector());
+	harrisDetector = tempPtr;
 }
 
 void FeatureDetectorNode::imageMessageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
 	cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(msg);			
 
-	if (cv_ptr->image.rows > 60 && cv_ptr->image.cols > 60)
-	      cv::circle(cv_ptr->image, cv::Point(50, 50), 10, CV_RGB(255,0,0));
+	std::vector<cv::KeyPoint> keyPoints;
+
+	harrisDetector->detectImpl(cv_ptr->image,keyPoints);
+	harrisDetector->drawKeyPoints(cv_ptr->image,keyPoints);
 
 	pub.publish(cv_ptr->toImageMsg());
 }
